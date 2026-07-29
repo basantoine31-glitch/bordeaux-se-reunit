@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuizLive — QCM en direct</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #12163B;
+    --surface: #1B2153;
+    --surface-2: #232B66;
+    --primary: #7C5CFC;
+    --accent: #FFB238;
+    --text: #F5F3FF;
+    --muted: #A6ADD9;
+    --correct: #3DDC97;
+    --wrong: #FF5468;
+    --radius: 18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background: radial-gradient(1200px 800px at 80% -10%, color-mix(in srgb, var(--primary) 20%, transparent), transparent),
+                var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height:100vh;
+  }
+  h1,h2,h3,.display{ font-family:'Space Grotesk', sans-serif; letter-spacing:-0.01em; }
+  #root{ min-height:100vh; display:flex; flex-direction:column; }
+  a{ color: inherit; }
+  button{ font-family:inherit; cursor:pointer; }
+  .btn{
+    border:none; border-radius: 999px; padding: 12px 22px; font-weight:600; font-size:15px;
+    background: var(--surface-2); color: var(--text); transition: transform .12s ease, filter .12s ease;
+  }
+  .btn:hover{ filter:brightness(1.15); }
+  .btn:active{ transform: scale(.97); }
+  .btn-primary{ background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 60%, var(--accent))); color:#fff; }
+  .btn-accent{ background: var(--accent); color:#1a1200; }
+  .btn-danger{ background: var(--wrong); color:#fff; }
+  .btn-ghost{ background: transparent; border:1px solid color-mix(in srgb, var(--text) 25%, transparent); }
+  .btn-sm{ padding:8px 14px; font-size:13px; }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+  .card{ background: var(--surface); border-radius: var(--radius); padding:24px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  input[type=text], input[type=url], input[type=number], textarea, select{
+    width:100%; background: var(--surface-2); border:1px solid color-mix(in srgb, var(--text) 15%, transparent);
+    color: var(--text); border-radius:10px; padding:10px 12px; font-family:inherit; font-size:14px;
+  }
+  input[type=color]{ width:48px; height:36px; border:none; border-radius:8px; background:none; padding:0; }
+  label{ font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; display:block; margin-bottom:6px;}
+  .field{ margin-bottom:14px; }
+  .center{ display:flex; align-items:center; justify-content:center; }
+  .col{ display:flex; flex-direction:column; }
+  .row{ display:flex; align-items:center; }
+  .gap-8{ gap:8px;} .gap-12{gap:12px;} .gap-16{gap:16px;} .gap-24{gap:24px;}
+  .grow{ flex:1; }
+  .wrap{ flex-wrap:wrap; }
+  .muted{ color: var(--muted); }
+  .badge{ display:inline-flex; align-items:center; gap:6px; background: var(--surface-2); border-radius:999px; padding:6px 14px; font-weight:700; font-size:13px; }
+  .code-tag{ font-family:'Space Grotesk',monospace; font-weight:700; letter-spacing:.15em; }
+
+  /* ---- landing ---- */
+  .landing{ flex:1; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .landing-card{ max-width:440px; width:100%; text-align:center; }
+  .logo{ font-size:34px; font-weight:700; margin-bottom:4px; }
+  .logo span{ color: var(--accent); }
+  .tagline{ color:var(--muted); margin-bottom:28px; }
+  .choice-tiles{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .tile{ background:var(--surface-2); border-radius:16px; padding:22px 14px; border:2px solid transparent; }
+  .tile:hover{ border-color: var(--primary); }
+  .tile-emoji{ font-size:28px; margin-bottom:8px; }
+
+  /* ---- score badge (player) ---- */
+  .score-badge{ position:fixed; top:14px; right:14px; z-index:50; background: var(--surface); border:1px solid color-mix(in srgb, var(--accent) 40%, transparent); padding:8px 16px; border-radius:999px; font-weight:700; box-shadow:0 6px 18px rgba(0,0,0,.3); }
+  .score-badge .num{ color: var(--accent); }
+
+  /* ---- host layout ---- */
+  .host-shell{ flex:1; display:flex; flex-direction:column; }
+  .host-topbar{ display:flex; align-items:center; justify-content:space-between; padding:14px 22px; background: color-mix(in srgb, var(--surface) 80%, black 10%); border-bottom:1px solid color-mix(in srgb, var(--text) 8%, transparent); }
+  .tabs{ display:flex; gap:6px; }
+  .tab-btn{ background:transparent; border:none; color:var(--muted); font-weight:700; padding:10px 16px; border-radius:10px; }
+  .tab-btn.active{ background: var(--primary); color:#fff; }
+  .host-main{ flex:1; padding:26px; display:flex; flex-direction:column; gap:20px; }
+
+  /* ---- stage (question projector view) ---- */
+  .stage{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:26px; text-align:center; }
+  .cover-img, .transition-img{ max-width:min(720px,90%); max-height:52vh; border-radius:20px; box-shadow:0 20px 50px rgba(0,0,0,.4); }
+  .qtext{ font-size:clamp(22px,3.4vw,40px); font-weight:700; max-width:900px; }
+  .qimage{ max-width:min(420px,80%); max-height:34vh; border-radius:16px; margin:6px auto; box-shadow:0 14px 34px rgba(0,0,0,.35); }
+  .choices-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; width:100%; max-width:900px; }
+  @media (max-width:640px){ .choices-grid{ grid-template-columns:1fr; } }
+  .choice-box{ border-radius:16px; padding:18px 20px; font-weight:700; font-size:17px; text-align:left; color:#fff; position:relative; overflow:hidden; }
+  .choice-box .shape-icon{ display:inline-flex; width:28px; height:28px; align-items:center; justify-content:center; margin-right:10px; vertical-align:middle; flex-shrink:0; }
+  .choice-box .shape-icon svg{ display:block; filter: drop-shadow(0 1px 1px rgba(0,0,0,.2)); }
+  .swatch-0{ background:#5C6BFF;} .swatch-1{ background:#FF6B8B;} .swatch-2{ background:#31C7A5;} .swatch-3{ background:#FFA341;} .swatch-4{ background:#B072FF;} .swatch-5{ background:#3FB6E6;}
+
+  .choice-btn{ border:none; }
+  .choice-btn.correct-flag{ outline:4px solid var(--correct); }
+  .choice-btn.wrong-flag{ outline:4px solid var(--wrong); opacity:.55; }
+  .choice-btn.picked::after{ content:"✓"; position:absolute; top:10px; right:14px; font-size:18px; }
+
+  .stat-strip{ position:fixed; bottom:0; left:0; right:0; background: color-mix(in srgb, var(--surface) 90%, black 5%); padding:14px 22px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid color-mix(in srgb, var(--text) 8%, transparent); }
+
+  /* ---- leaderboard ---- */
+  .lb-row{ display:flex; align-items:center; gap:14px; background:var(--surface-2); border-radius:14px; padding:12px 18px; margin-bottom:10px; }
+  .lb-rank{ font-family:'Space Grotesk',sans-serif; font-weight:700; width:34px; text-align:center; color:var(--accent); }
+  .lb-name{ flex:1; font-weight:600; }
+  .lb-score{ font-weight:700; }
+  .lb-delta{ font-size:12px; color:var(--correct); font-weight:700; }
+  .podium{ display:flex; align-items:flex-end; gap:16px; justify-content:center; margin:20px 0 30px; }
+  .podium-col{ width:140px; text-align:center; }
+  .podium-bar{ border-radius:14px 14px 0 0; display:flex; align-items:flex-start; justify-content:center; padding-top:10px; font-weight:700; color:#fff; }
+  .podium-1 .podium-bar{ height:170px; background:linear-gradient(180deg,var(--accent),#c98600); }
+  .podium-0 .podium-bar{ height:210px; background:linear-gradient(180deg,#FFD86B,var(--accent)); }
+  .podium-2 .podium-bar{ height:130px; background:linear-gradient(180deg,#7C5CFC,#4b36a8); }
+
+  /* ---- settings ---- */
+  .settings-grid{ display:grid; grid-template-columns: 320px 1fr; gap:22px; align-items:start; }
+  @media (max-width:900px){ .settings-grid{ grid-template-columns:1fr; } }
+  .color-row{ display:flex; align-items:center; gap:10px; justify-content:space-between; margin-bottom:10px; }
+  .qcard{ border:1px solid color-mix(in srgb, var(--text) 10%, transparent); border-radius:14px; padding:16px; margin-bottom:14px; background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
+  .qcard-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .choice-edit-row{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .icon-btn{ background:transparent; border:none; color:var(--muted); font-size:16px; padding:4px 8px; border-radius:8px; }
+  .icon-btn:hover{ background: rgba(255,255,255,.08); color:var(--text); }
+
+  /* ---- player ---- */
+  .player-shell{ flex:1; display:flex; flex-direction:column; padding:22px; padding-top:70px; }
+  .waiting-pulse{ width:70px; height:70px; border-radius:50%; border:5px solid var(--surface-2); border-top-color: var(--accent); animation: spin 1s linear infinite; margin:0 auto; }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+  .fade-in{ animation: fade .35s ease; }
+  @keyframes fade{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+  .join-answer-dot{ width:10px;height:10px;border-radius:50%; background:var(--correct); display:inline-block; }
+  .footer-note{ text-align:center; color:var(--muted); font-size:12px; padding:16px; }
+
+  /* ---- saved quizzes list ---- */
+  .saved-list{ max-height:260px; overflow-y:auto; text-align:left; }
+  .saved-row{ display:flex; align-items:center; gap:10px; background:var(--surface-2); border-radius:12px; padding:10px 12px; margin-bottom:8px; }
+  .saved-row .meta{ flex:1; min-width:0; }
+  .saved-row .meta .t{ font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .saved-row .meta .s{ font-size:11px; color:var(--muted); }
+  .saved-row .actions{ display:flex; gap:6px; flex-shrink:0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+/* ============================= UTILITIES ============================= */
+const $ = (sel, el=document) => el.querySelector(sel);
+const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
+const esc = (s='') => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CHOICE_COLORS = ['swatch-0','swatch-1','swatch-2','swatch-3','swatch-4','swatch-5'];
+
+function shapeIconSVG(index, size=26){
+  const c = size/2, r = size/2 - 2;
+  if(index === 0){
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${c}" cy="${c}" r="${r}" fill="#fff"/></svg>`;
+  }
+  const sides = index + 2; // 1->triangle(3), 2->square(4), 3->pentagon(5), 4->hexagon(6)...
+  const pts = [];
+  for(let i=0;i<sides;i++){
+    const angle = (-90 + i*360/sides) * Math.PI/180;
+    pts.push(`${(c + r*Math.cos(angle)).toFixed(2)},${(c + r*Math.sin(angle)).toFixed(2)}`);
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><polygon points="${pts.join(' ')}" fill="#fff"/></svg>`;
+}
+
+/* ============================= SOCKET.IO CONNECTION ============================= */
+const socket = io(); // connects to the same origin serving this page
+
+/* ============================= DEFAULTS ============================= */
+function defaultTheme(){
+  return { bg:'#12163B', surface:'#1B2153', primary:'#7C5CFC', accent:'#FFB238', text:'#F5F3FF', correct:'#3DDC97', wrong:'#FF5468' };
+}
+function defaultConfig(){
+  return {
+    title: 'Quiz sans titre',
+    theme: defaultTheme(),
+    coverImage: '',
+    questions: [
+      { id:'q'+Date.now(), text:'Quelle est la capitale de la France ?', image:'', transitionImage:'', choices:['Paris','Lyon','Marseille','Toulouse'], correctIndex:0 }
+    ]
+  };
+}
+function defaultState(){
+  return { phase: 'lobby', currentQuestionIndex: -1, questionOpenedAt: null };
+}
+function applyTheme(theme){
+  const t = Object.assign(defaultTheme(), theme||{});
+  const root = document.documentElement.style;
+  root.setProperty('--bg', t.bg);
+  root.setProperty('--surface', t.surface);
+  root.setProperty('--primary', t.primary);
+  root.setProperty('--accent', t.accent);
+  root.setProperty('--text', t.text);
+  root.setProperty('--correct', t.correct);
+  root.setProperty('--wrong', t.wrong);
+}
+
+/* ============================= APP STATE ============================= */
+const App = {
+  mode: 'choose',       // 'choose' | 'host' | 'player'
+  code: '',
+  hostTab: 'live',      // 'live' | 'settings'
+  config: null,
+  state: null,
+  players: null,
+  playerId: null,
+  playerName: '',
+  editDraft: null,
+  lastResultsCache: {}, // qIndex -> results
+  liveAnswerCount: { count: 0, total: 0 },
+};
+
+/* ============================= SOCKET EVENT HANDLERS ============================= */
+socket.on('connect', () => {
+  // (re)join the room on connect/reconnect so we keep receiving live updates
+  if(App.code){
+    if(App.mode === 'host') socket.emit('host:join', { code: App.code }, (res) => {
+      if(res && res.session){ App.config = res.session.config; App.state = res.session.state; App.players = res.session.players; applyTheme(App.config.theme); render(); }
+    });
+    else if(App.mode === 'player') socket.emit('player:join', { code: App.code, name: App.playerName }, (res) => {
+      if(res && res.session){ App.config = res.session.config; App.state = res.session.state; App.players = res.session.players; applyTheme(App.config.theme); render(); }
+    });
+  }
+});
+socket.on('state:update', (state) => { App.state = state; render(); });
+socket.on('config:update', (config) => { App.config = config; applyTheme(config.theme); render(); });
+socket.on('players:update', (players) => { App.players = players; render(); });
+socket.on('answers:count', ({ count, total }) => {
+  App.liveAnswerCount = { count, total };
+  const badge = document.querySelector('#liveAnswerBadge');
+  if(badge) badge.textContent = `${count} / ${total} réponse(s)`;
+});
+socket.on('results:update', ({ qIndex, results }) => {
+  App.lastResultsCache[qIndex] = results;
+  if(App.mode === 'player' && App.state && App.state.phase === 'reveal' && App.state.currentQuestionIndex === qIndex) render();
+  if(App.mode === 'host') render();
+});
+
+function playerCount(){ return Object.keys(App.players||{}).length; }
+
+function syncFromSession(session){
+  App.config = session.config;
+  App.state = session.state;
+  App.players = session.players;
+  applyTheme(App.config.theme);
+  const idx = session.state.currentQuestionIndex;
+  const ans = (session.answers && session.answers[idx]) || {};
+  App.liveAnswerCount = { qIndex: idx, count: Object.keys(ans).length, total: Object.keys(session.players||{}).length };
+}
+
+/* ============================= RENDER ROOT ============================= */
+function render(){
+  const root = $('#root');
+  root.innerHTML = '';
+  if(App.mode === 'choose') root.appendChild(renderChoose());
+  else if(App.mode === 'host') root.appendChild(renderHost());
+  else if(App.mode === 'player') root.appendChild(renderPlayer());
+}
+
+/* ============================= LANDING ============================= */
+function renderChoose(){
+  const wrap = h(`
+    <div class="landing">
+      <div class="landing-card fade-in">
+        <div class="logo">Quiz<span>Live</span></div>
+        <div class="tagline">Créez ou rejoignez un QCM en direct</div>
+        <div class="choice-tiles">
+          <button class="tile" id="tileHost">
+            <div class="tile-emoji">🎛️</div>
+            <div style="font-weight:700;">Je suis l'hôte</div>
+            <div class="muted" style="font-size:12px;margin-top:4px;">Créer et animer un quiz</div>
+          </button>
+          <button class="tile" id="tileJoin">
+            <div class="tile-emoji">🙋</div>
+            <div style="font-weight:700;">Je suis joueur</div>
+            <div class="muted" style="font-size:12px;margin-top:4px;">Rejoindre avec un code</div>
+          </button>
+        </div>
+        <div id="subForm" style="margin-top:22px;"></div>
+      </div>
+    </div>
+  `);
+
+  wrap.querySelector('#tileHost').onclick = () => {
+    const sub = wrap.querySelector('#subForm');
+    sub.innerHTML = '';
+    sub.appendChild(h(`
+      <div class="card col gap-12 fade-in">
+        <button class="btn btn-primary" id="btnNewSession">+ Créer un nouveau quiz</button>
+        <div class="muted" style="font-size:12px;margin:2px 0 -4px;">Vos quiz enregistrés</div>
+        <div class="saved-list" id="savedList"><div class="muted" style="font-size:13px;">Chargement…</div></div>
+        <div class="row gap-8" style="border-top:1px solid rgba(255,255,255,.08); padding-top:12px; margin-top:4px;">
+          <input type="text" id="rejoinCode" placeholder="Ou entrez un code manuellement" maxlength="5" style="text-transform:uppercase;">
+          <button class="btn btn-ghost" id="btnRejoinHost">Reprendre</button>
+        </div>
+      </div>
+    `));
+
+    sub.querySelector('#btnNewSession').onclick = () => {
+      socket.emit('session:create', (res) => {
+        App.code = res.code;
+        App.config = res.session.config;
+        App.state = res.session.state;
+        App.players = res.session.players;
+        applyTheme(App.config.theme);
+        App.mode = 'host'; App.hostTab = 'live';
+        socket.emit('host:join', { code: App.code }, () => render());
+      });
+    };
+    sub.querySelector('#btnRejoinHost').onclick = () => {
+      const code = sub.querySelector('#rejoinCode').value.trim().toUpperCase();
+      if(!code) return;
+      socket.emit('host:join', { code }, (res) => {
+        if(!res || !res.session){ alert('Session introuvable pour ce code.'); return; }
+        App.code = code;
+        App.config = res.session.config;
+        App.state = res.session.state;
+        App.players = res.session.players;
+        applyTheme(App.config.theme);
+        App.mode = 'host'; App.hostTab = 'live';
+        render();
+      });
+    };
+
+    const listEl = sub.querySelector('#savedList');
+    socket.emit('registry:list', (list) => {
+      list.sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0));
+      if(!list.length){ listEl.innerHTML = '<div class="muted" style="font-size:13px;">Aucun quiz enregistré pour l\'instant.</div>'; return; }
+      listEl.innerHTML = '';
+      list.forEach(meta => {
+        const d = new Date(meta.updatedAt || meta.createdAt || Date.now());
+        const row = h(`
+          <div class="saved-row">
+            <div class="meta">
+              <div class="t">${esc(meta.title || 'Quiz sans titre')}</div>
+              <div class="s">Code ${esc(meta.code)} · modifié le ${d.toLocaleDateString('fr-FR')}</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm" data-act="continue">Continuer</button>
+              <button class="btn btn-accent btn-sm" data-act="new">Nouvelle partie</button>
+            </div>
+          </div>
+        `);
+        row.querySelector('[data-act=continue]').onclick = () => {
+          socket.emit('host:join', { code: meta.code }, (res) => {
+            App.code = meta.code;
+            App.config = res.session.config;
+            App.state = res.session.state;
+            App.players = res.session.players;
+            applyTheme(App.config.theme);
+            App.mode = 'host'; App.hostTab = 'live';
+            render();
+          });
+        };
+        row.querySelector('[data-act=new]').onclick = () => {
+          socket.emit('session:clone', { code: meta.code }, (res) => {
+            socket.emit('host:join', { code: res.code }, (res2) => {
+              App.code = res.code;
+              App.config = res2.session.config;
+              App.state = res2.session.state;
+              App.players = res2.session.players;
+              applyTheme(App.config.theme);
+              App.mode = 'host'; App.hostTab = 'live';
+              render();
+            });
+          });
+        };
+        listEl.appendChild(row);
+      });
+    });
+  };
+
+  wrap.querySelector('#tileJoin').onclick = () => {
+    const sub = wrap.querySelector('#subForm');
+    sub.innerHTML = '';
+    sub.appendChild(h(`
+      <div class="card col gap-12 fade-in">
+        <div class="field" style="text-align:left;margin:0;">
+          <label>Code de session</label>
+          <input type="text" id="joinCode" placeholder="Ex. F3T9K" maxlength="5" style="text-transform:uppercase;">
+        </div>
+        <div class="field" style="text-align:left;margin:0;">
+          <label>Votre pseudo (ce sera votre identifiant)</label>
+          <input type="text" id="joinName" placeholder="Ex. Alex">
+        </div>
+        <div id="joinErr" class="muted" style="color:var(--wrong); font-size:13px;"></div>
+        <button class="btn btn-primary" id="btnJoin">Rejoindre</button>
+      </div>
+    `));
+    sub.querySelector('#btnJoin').onclick = () => {
+      const code = sub.querySelector('#joinCode').value.trim().toUpperCase();
+      const name = sub.querySelector('#joinName').value.trim();
+      const errEl = sub.querySelector('#joinErr');
+      errEl.textContent = '';
+      if(!code || !name){ errEl.textContent = 'Merci de remplir le code et votre pseudo.'; return; }
+      socket.emit('player:join', { code, name }, (res) => {
+        if(!res || !res.session){ errEl.textContent = "Aucune session trouvée avec ce code."; return; }
+        App.code = code;
+        App.playerId = res.playerId;
+        App.playerName = name;
+        App.config = res.session.config;
+        App.players = res.session.players;
+        App.state = res.session.state;
+        applyTheme(App.config.theme);
+        App.mode = 'player';
+        App._answeredIdx = null;
+        render();
+      });
+    };
+  };
+  return wrap;
+}
+
+/* ============================= HOST VIEW ============================= */
+function renderHost(){
+  const shell = h(`
+    <div class="host-shell fade-in">
+      <div class="host-topbar">
+        <div class="row gap-12">
+          <div class="display" style="font-weight:700;">Quiz<span style="color:var(--accent);">Live</span></div>
+          <div class="muted" style="font-weight:600;">${esc((App.config&&App.config.title)||'')}</div>
+          <div class="badge">Code&nbsp;<span class="code-tag">${esc(App.code)}</span></div>
+        </div>
+        <div class="tabs">
+          <button class="tab-btn ${App.hostTab==='live'?'active':''}" id="tabLive">Direct</button>
+          <button class="tab-btn ${App.hostTab==='settings'?'active':''}" id="tabSettings">Paramètres</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="btnQuit">Quitter</button>
+      </div>
+      <div class="host-main" id="hostMain"></div>
+    </div>
+  `);
+  shell.querySelector('#tabLive').onclick = () => { App.hostTab = 'live'; render(); };
+  shell.querySelector('#tabSettings').onclick = () => { App.hostTab = 'settings'; App.editDraft = JSON.parse(JSON.stringify(App.config)); render(); };
+  shell.querySelector('#btnQuit').onclick = () => { App.mode='choose'; App.code=''; render(); };
+
+  const main = shell.querySelector('#hostMain');
+  main.appendChild(App.hostTab === 'live' ? renderHostLive() : renderHostSettings());
+  return shell;
+}
+
+function renderHostLive(){
+  const st = App.state || defaultState();
+  const cfg = App.config || defaultConfig();
+  const box = h(`<div class="col grow" style="min-height:0;"></div>`);
+
+  if(st.phase === 'lobby'){
+    box.appendChild(h(`
+      <div class="stage">
+        <div class="muted" style="font-size:14px;">EN ATTENTE DES JOUEURS</div>
+        <div class="display" style="font-size:48px;font-weight:700;">Rejoignez avec le code</div>
+        <div class="code-tag" style="font-size:64px;color:var(--accent);">${esc(App.code)}</div>
+        <div class="badge">${playerCount()} joueur(s) connecté(s)</div>
+        <div class="row gap-12" style="margin-top:10px; flex-wrap:wrap; justify-content:center; max-width:700px;">
+          ${Object.values(App.players||{}).map(p=>`<span class="badge">${esc(p.name)}</span>`).join('') || '<span class="muted">Personne pour l\'instant…</span>'}
+        </div>
+        <button class="btn btn-primary" id="btnGoCover" style="margin-top:20px;">Démarrer le quiz</button>
+      </div>
+    `));
+    box.querySelector('#btnGoCover').onclick = () => {
+      const nextPhase = cfg.coverImage ? 'cover' : (cfg.questions[0] && cfg.questions[0].transitionImage ? 'transition' : 'question');
+      const newState = Object.assign({}, st, { phase: nextPhase, currentQuestionIndex: 0 });
+      if(nextPhase === 'question') newState.questionOpenedAt = Date.now();
+      socket.emit('state:update', { code: App.code, state: newState });
+    };
+  }
+  else if(st.phase === 'cover'){
+    box.appendChild(h(`
+      <div class="stage">
+        ${cfg.coverImage ? `<img class="cover-img" src="${esc(cfg.coverImage)}">` : ''}
+        <button class="btn btn-primary" id="btnStartQ">Commencer la première question</button>
+      </div>
+    `));
+    box.querySelector('#btnStartQ').onclick = () => {
+      const q0 = cfg.questions[0];
+      const nextPhase = (q0 && q0.transitionImage) ? 'transition' : 'question';
+      const newState = Object.assign({}, st, { phase: nextPhase, currentQuestionIndex: 0 });
+      if(nextPhase === 'question') newState.questionOpenedAt = Date.now();
+      socket.emit('state:update', { code: App.code, state: newState });
+    };
+  }
+  else if(st.phase === 'transition'){
+    const q = cfg.questions[st.currentQuestionIndex];
+    box.appendChild(h(`
+      <div class="stage">
+        ${q && q.transitionImage ? `<img class="transition-img" src="${esc(q.transitionImage)}">` : `<div class="muted">Image de transition</div>`}
+        <button class="btn btn-primary" id="btnShowQ">Afficher la question</button>
+      </div>
+    `));
+    box.querySelector('#btnShowQ').onclick = () => {
+      const newState = Object.assign({}, st, { phase: 'question', questionOpenedAt: Date.now() });
+      socket.emit('state:update', { code: App.code, state: newState });
+    };
+  }
+  else if(st.phase === 'question' || st.phase === 'closed'){
+    const q = cfg.questions[st.currentQuestionIndex] || {};
+    box.appendChild(renderHostQuestionStage(q, st, cfg, false));
+  }
+  else if(st.phase === 'reveal'){
+    const q = cfg.questions[st.currentQuestionIndex] || {};
+    box.appendChild(renderHostQuestionStage(q, st, cfg, true));
+  }
+  else if(st.phase === 'leaderboard'){
+    box.appendChild(renderLeaderboard(st, false));
+  }
+  else if(st.phase === 'end'){
+    box.appendChild(renderLeaderboard(st, true));
+  }
+  return box;
+}
+
+function renderHostQuestionStage(q, st, cfg, revealed){
+  const idx = st.currentQuestionIndex;
+  const stage = h(`
+    <div class="stage" style="padding-bottom:90px;">
+      <div class="muted">Question ${idx+1} / ${cfg.questions.length}</div>
+      <div class="qtext">${esc(q.text||'')}</div>
+      ${q.image ? `<img class="qimage" src="${esc(q.image)}">` : ''}
+      <div class="choices-grid" id="hostChoices"></div>
+    </div>
+  `);
+  const grid = stage.querySelector('#hostChoices');
+  (q.choices||[]).forEach((c, i) => {
+    const isCorrect = i === q.correctIndex;
+    const cls = revealed ? (isCorrect ? 'correct-flag' : 'wrong-flag') : '';
+    grid.appendChild(h(`
+      <div class="choice-box ${CHOICE_COLORS[i%6]} ${cls}"><span class="shape-icon">${shapeIconSVG(i)}</span>${esc(c)}</div>
+    `));
+  });
+
+  const bar = h(`
+    <div class="stat-strip">
+      <div class="badge" id="liveAnswerBadge">${App.liveAnswerCount.count||0} / ${playerCount()} réponse(s)</div>
+      <div class="row gap-12">
+        ${st.phase==='question' ? `<button class="btn btn-danger" id="btnClose">Clore les réponses</button>` : ''}
+        ${st.phase==='closed' ? `<button class="btn btn-primary" id="btnReveal">Révéler la réponse</button>` : ''}
+        ${st.phase==='reveal' ? `<button class="btn btn-primary" id="btnToLB">Voir le classement</button>` : ''}
+      </div>
+    </div>
+  `);
+
+  const closeBtn = bar.querySelector('#btnClose');
+  if(closeBtn) closeBtn.onclick = () => {
+    const newState = Object.assign({}, st, { phase: 'closed' });
+    socket.emit('state:update', { code: App.code, state: newState });
+  };
+  const revealBtn = bar.querySelector('#btnReveal');
+  if(revealBtn) revealBtn.onclick = () => {
+    socket.emit('question:reveal', { code: App.code, qIndex: idx }, (res) => {
+      App.lastResultsCache[idx] = res.results;
+      const newState = Object.assign({}, st, { phase: 'reveal' });
+      socket.emit('state:update', { code: App.code, state: newState });
+    });
+  };
+  const toLBBtn = bar.querySelector('#btnToLB');
+  if(toLBBtn) toLBBtn.onclick = () => {
+    const newState = Object.assign({}, st, { phase: 'leaderboard' });
+    socket.emit('state:update', { code: App.code, state: newState });
+  };
+
+  const container = h(`<div class="col grow" style="min-height:0;"></div>`);
+  container.appendChild(stage);
+  container.appendChild(bar);
+  return container;
+}
+
+function renderLeaderboard(st, isEnd){
+  const players = Object.entries(App.players||{}).map(([id,p]) => ({id, ...p}));
+  players.sort((a,b) => (b.score||0) - (a.score||0));
+  const idx = st.currentQuestionIndex;
+  const results = App.lastResultsCache[idx] || {};
+  const box = h(`
+    <div class="stage">
+      <div class="display" style="font-size:30px;">${isEnd ? '🏆 Classement final' : 'Classement'}</div>
+      ${isEnd ? renderPodium(players) : ''}
+      <div style="width:100%;max-width:560px;">
+        ${players.map((p,i) => `
+          <div class="lb-row">
+            <div class="lb-rank">#${i+1}</div>
+            <div class="lb-name">${esc(p.name)}</div>
+            ${results[p.id] ? `<div class="lb-delta">+${results[p.id]}</div>` : ''}
+            <div class="lb-score">${p.score||0}</div>
+          </div>
+        `).join('') || '<div class="muted">Aucun joueur.</div>'}
+      </div>
+      ${!isEnd ? `<button class="btn btn-primary" id="btnNextQ">${(st.currentQuestionIndex+1) < (App.config.questions.length) ? 'Question suivante' : 'Terminer le quiz'}</button>` : ''}
+    </div>
+  `);
+  if(!isEnd){
+    box.querySelector('#btnNextQ').onclick = () => {
+      const nextIdx = st.currentQuestionIndex + 1;
+      let newState;
+      if(nextIdx >= App.config.questions.length){
+        newState = Object.assign({}, st, { phase: 'end' });
+      } else {
+        const nq = App.config.questions[nextIdx];
+        if(nq.transitionImage){
+          newState = Object.assign({}, st, { phase: 'transition', currentQuestionIndex: nextIdx });
+        } else {
+          newState = Object.assign({}, st, { phase: 'question', currentQuestionIndex: nextIdx, questionOpenedAt: Date.now() });
+        }
+      }
+      App.liveAnswerCount = { count: 0, total: playerCount() };
+      socket.emit('state:update', { code: App.code, state: newState });
+    };
+  }
+  return box;
+}
+
+function renderPodium(players){
+  const top = players.slice(0,3);
+  const order = [1,0,2].filter(i => top[i]);
+  return `<div class="podium">
+    ${order.map(i => `
+      <div class="podium-col podium-${i}">
+        <div style="font-weight:700;margin-bottom:6px;">${esc(top[i].name)}</div>
+        <div class="podium-bar">${top[i].score||0}</div>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
+/* ---- Settings tab ---- */
+function renderHostSettings(){
+  const draft = App.editDraft || (App.editDraft = JSON.parse(JSON.stringify(App.config)));
+  const wrap = h(`
+    <div class="settings-grid">
+      <div class="col gap-16">
+        <div class="card">
+          <h3 style="margin-top:0;">Général</h3>
+          <div class="field">
+            <label>Titre du quiz</label>
+            <input type="text" id="quizTitle" value="${esc(draft.title||'')}" placeholder="Ex. Culture générale — Vendredi">
+          </div>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;">Apparence</h3>
+          <div id="colorRows"></div>
+          <div class="field">
+            <label>Image de couverture (URL)</label>
+            <input type="url" id="coverUrl" placeholder="https://..." value="${esc(draft.coverImage||'')}">
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btnSaveAll">Enregistrer les modifications</button>
+      </div>
+      <div class="card" id="questionsPanel">
+        <div class="row" style="justify-content:space-between;">
+          <h3 style="margin-top:0;">Questions</h3>
+          <button class="btn btn-accent btn-sm" id="btnAddQ">+ Ajouter une question</button>
+        </div>
+        <div id="qList"></div>
+      </div>
+    </div>
+  `);
+
+  const colorFields = [
+    ['bg','Fond'], ['surface','Panneaux'], ['primary','Couleur principale'],
+    ['accent','Accent'], ['text','Texte'], ['correct','Bonne réponse'], ['wrong','Mauvaise réponse']
+  ];
+  const colorRows = wrap.querySelector('#colorRows');
+  colorFields.forEach(([key,label]) => {
+    const row = h(`
+      <div class="color-row">
+        <span>${label}</span>
+        <input type="color" data-key="${key}" value="${draft.theme[key]}">
+      </div>
+    `);
+    row.querySelector('input').oninput = (e) => { draft.theme[key] = e.target.value; applyTheme(draft.theme); };
+    colorRows.appendChild(row);
+  });
+  wrap.querySelector('#coverUrl').oninput = (e) => { draft.coverImage = e.target.value; };
+  wrap.querySelector('#quizTitle').oninput = (e) => { draft.title = e.target.value; };
+
+  const qList = wrap.querySelector('#qList');
+  function renderQList(){
+    qList.innerHTML = '';
+    draft.questions.forEach((q, qi) => qList.appendChild(renderQEditCard(draft, q, qi, renderQList)));
+  }
+  renderQList();
+
+  wrap.querySelector('#btnAddQ').onclick = () => {
+    draft.questions.push({ id:'q'+Date.now(), text:'Nouvelle question', image:'', transitionImage:'', choices:['Réponse 1','Réponse 2'], correctIndex:0 });
+    renderQList();
+  };
+
+  wrap.querySelector('#btnSaveAll').onclick = () => {
+    App.config = JSON.parse(JSON.stringify(draft));
+    applyTheme(App.config.theme);
+    socket.emit('config:save', { code: App.code, config: App.config });
+    const btn = wrap.querySelector('#btnSaveAll');
+    btn.textContent = 'Enregistré ✓';
+    setTimeout(()=>{ btn.textContent = 'Enregistrer les modifications'; }, 1600);
+  };
+
+  return wrap;
+}
+
+function renderQEditCard(draft, q, qi, rerender){
+  const card = h(`
+    <div class="qcard">
+      <div class="qcard-head">
+        <strong>Question ${qi+1}</strong>
+        <button class="icon-btn" title="Supprimer">🗑</button>
+      </div>
+      <div class="field">
+        <label>Texte de la question</label>
+        <textarea rows="2">${esc(q.text)}</textarea>
+      </div>
+      <div class="row gap-12 wrap">
+        <div class="field grow" style="min-width:200px;">
+          <label>Image de la question (URL, optionnel)</label>
+          <input type="url" class="qimg" value="${esc(q.image||'')}" placeholder="https://...">
+        </div>
+        <div class="field grow" style="min-width:200px;">
+          <label>Image de transition avant cette question (optionnel)</label>
+          <input type="url" class="qtrans" value="${esc(q.transitionImage||'')}" placeholder="https://...">
+        </div>
+      </div>
+      <label>Propositions (cochez la bonne réponse)</label>
+      <div class="choicesEdit"></div>
+      <button class="btn btn-ghost btn-sm" id="addChoice">+ Ajouter une proposition</button>
+    </div>
+  `);
+  card.querySelector('.icon-btn').onclick = () => { draft.questions.splice(qi,1); rerender(); };
+  card.querySelector('textarea').oninput = (e) => { q.text = e.target.value; };
+  card.querySelector('.qimg').oninput = (e) => { q.image = e.target.value; };
+  card.querySelector('.qtrans').oninput = (e) => { q.transitionImage = e.target.value; };
+
+  const cEdit = card.querySelector('.choicesEdit');
+  function renderChoices(){
+    cEdit.innerHTML = '';
+    q.choices.forEach((c, ci) => {
+      const row = h(`
+        <div class="choice-edit-row">
+          <input type="radio" name="correct-${q.id}" ${ci===q.correctIndex?'checked':''}>
+          <input type="text" class="grow" value="${esc(c)}">
+          <button class="icon-btn" ${q.choices.length<=2?'disabled':''}>✕</button>
+        </div>
+      `);
+      row.querySelector('input[type=radio]').onchange = () => { q.correctIndex = ci; };
+      row.querySelector('input[type=text]').oninput = (e) => { q.choices[ci] = e.target.value; };
+      row.querySelector('button').onclick = () => { q.choices.splice(ci,1); if(q.correctIndex>=q.choices.length) q.correctIndex=0; renderChoices(); };
+      cEdit.appendChild(row);
+    });
+  }
+  renderChoices();
+  card.querySelector('#addChoice').onclick = () => {
+    if(q.choices.length >= 6) return;
+    q.choices.push('Nouvelle proposition');
+    renderChoices();
+  };
+  return card;
+}
+
+/* ============================= PLAYER VIEW ============================= */
+function renderPlayer(){
+  const st = App.state || defaultState();
+  const cfg = App.config || defaultConfig();
+  const me = (App.players||{})[App.playerId] || { name: App.playerName, score:0 };
+
+  const shell = h(`<div class="player-shell fade-in"></div>`);
+  shell.appendChild(h(`<div class="score-badge">Score&nbsp;<span class="num">${me.score||0}</span></div>`));
+
+  if(st.phase === 'lobby'){
+    shell.appendChild(h(`
+      <div class="stage">
+        <div class="waiting-pulse"></div>
+        <div class="display" style="font-size:22px;">Bonjour ${esc(me.name)} 👋</div>
+        <div class="muted">En attente du démarrage par l'hôte…</div>
+      </div>
+    `));
+  }
+  else if(st.phase === 'cover'){
+    shell.appendChild(h(`
+      <div class="stage">
+        ${cfg.coverImage ? `<img class="cover-img" src="${esc(cfg.coverImage)}">` : ''}
+        <div class="muted">Ça va commencer…</div>
+      </div>
+    `));
+  }
+  else if(st.phase === 'transition'){
+    const q = cfg.questions[st.currentQuestionIndex];
+    shell.appendChild(h(`
+      <div class="stage">
+        ${q && q.transitionImage ? `<img class="transition-img" src="${esc(q.transitionImage)}">` : ''}
+        <div class="waiting-pulse"></div>
+      </div>
+    `));
+  }
+  else if(st.phase === 'question'){
+    if(App._answeredIdx === st.currentQuestionIndex){
+      shell.appendChild(h(`
+        <div class="stage">
+          <div class="waiting-pulse"></div>
+          <div class="display" style="font-size:20px;">Réponse envoyée !</div>
+          <div class="muted">En attente des autres joueurs…</div>
+        </div>
+      `));
+    } else {
+      const q = cfg.questions[st.currentQuestionIndex] || {};
+      const stage = h(`
+        <div class="stage">
+          <div class="muted">Question ${st.currentQuestionIndex+1}</div>
+          <div class="qtext">${esc(q.text||'')}</div>
+          ${q.image ? `<img class="qimage" src="${esc(q.image)}">` : ''}
+          <div class="choices-grid" id="pChoices"></div>
+        </div>
+      `);
+      const grid = stage.querySelector('#pChoices');
+      (q.choices||[]).forEach((c,i) => {
+        const btn = h(`<button class="choice-box choice-btn ${CHOICE_COLORS[i%6]}"><span class="shape-icon">${shapeIconSVG(i)}</span>${esc(c)}</button>`);
+        btn.onclick = () => {
+          if(App._answeredIdx === st.currentQuestionIndex) return;
+          App._answeredIdx = st.currentQuestionIndex;
+          socket.emit('answer:submit', { code: App.code, qIndex: st.currentQuestionIndex, playerId: App.playerId, choiceIndex: i });
+          render();
+        };
+        grid.appendChild(btn);
+      });
+      shell.appendChild(stage);
+    }
+  }
+  else if(st.phase === 'closed'){
+    shell.appendChild(h(`
+      <div class="stage">
+        <div class="waiting-pulse"></div>
+        <div class="display" style="font-size:20px;">Réponses closes</div>
+        <div class="muted">L'hôte va révéler la bonne réponse…</div>
+      </div>
+    `));
+  }
+  else if(st.phase === 'reveal'){
+    const idx = st.currentQuestionIndex;
+    const q = cfg.questions[idx] || {};
+    const res = App.lastResultsCache[idx] || {};
+    const pts = res[App.playerId] || 0;
+    shell.appendChild(h(`
+      <div class="stage">
+        <div class="qtext">${esc(q.text||'')}</div>
+        <div class="choices-grid" id="rChoices"></div>
+        <div class="badge" style="font-size:16px;">${pts > 0 ? `+ ${pts} points 🎉` : '0 point'}</div>
+      </div>
+    `));
+    const grid = shell.querySelector('#rChoices');
+    (q.choices||[]).forEach((c,i) => {
+      const isCorrect = i === q.correctIndex;
+      grid.appendChild(h(`<div class="choice-box ${CHOICE_COLORS[i%6]} ${isCorrect?'correct-flag':'wrong-flag'}"><span class="shape-icon">${shapeIconSVG(i)}</span>${esc(c)}</div>`));
+    });
+  }
+  else if(st.phase === 'leaderboard' || st.phase === 'end'){
+    const players = Object.entries(App.players||{}).map(([id,p]) => ({id, ...p}));
+    players.sort((a,b) => (b.score||0) - (a.score||0));
+    const myRank = players.findIndex(p => p.id === App.playerId) + 1;
+    shell.appendChild(h(`
+      <div class="stage">
+        <div class="display" style="font-size:24px;">${st.phase==='end' ? '🏆 Classement final' : 'Classement'}</div>
+        <div class="badge">Votre rang : #${myRank || '-'}</div>
+        <div style="width:100%;max-width:480px;">
+          ${players.slice(0,10).map((p,i) => `
+            <div class="lb-row" style="${p.id===App.playerId ? 'outline:2px solid var(--accent);' : ''}">
+              <div class="lb-rank">#${i+1}</div>
+              <div class="lb-name">${esc(p.name)}</div>
+              <div class="lb-score">${p.score||0}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `));
+  }
+
+  return shell;
+}
+
+/* ============================= INIT ============================= */
+applyTheme(defaultTheme());
+render();
+</script>
+</body>
+</html>
